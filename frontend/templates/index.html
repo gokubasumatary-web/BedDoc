@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BedDoc · KuboCare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">🛏</div>
+    <div>BedDoc<small>KuboCare · single-patient monitor</small></div>
+  </div>
+  <div class="hspace"></div>
+  <div class="pill" id="camPill"><span class="dot" id="camDot"></span><span>Camera <b id="camVal">—</b></span></div>
+  <div class="pill" id="fpsPill"><span>FPS <b class="num" id="fpsVal">—</b></span></div>
+  <div class="pill"><span class="dot" id="aiDot"></span><span>AI <b id="aiVal">—</b></span></div>
+  <div id="clock">--:--</div>
+</header>
+
+<main>
+  <section class="col-main">
+
+    <!-- Status -->
+    <div class="hero s-on-bed" id="hero">
+      <div class="hero-icon" id="heroIcon">🛏️</div>
+      <div>
+        <div class="hero-label">Patient status</div>
+        <div class="hero-state" id="heroState">ON BED</div>
+        <div class="hero-meta">
+          <span>For <b class="num" id="heroDur">—</b></span>
+          <span>Last change <b class="num" id="heroTs">—</b></span>
+        </div>
+      </div>
+      <div class="hero-side">
+        <div class="steps" id="steps">
+          <div class="step"><div class="step-bar"></div><div class="step-name">On bed</div></div>
+          <div class="step"><div class="step-bar"></div><div class="step-name">At edge</div></div>
+          <div class="step"><div class="step-bar"></div><div class="step-name">Getting out</div></div>
+          <div class="step"><div class="step-bar"></div><div class="step-name">Off bed</div></div>
+        </div>
+        <button class="btn-ack" onclick="acknowledge()">✓ Acknowledge</button>
+      </div>
+      <div class="verdict" id="heroVerdict">
+        <span class="v-tag" id="hvTag">AI</span>
+        <span class="v-reason" id="hvReason"></span>
+        <span class="v-time num" id="hvTime"></span>
+      </div>
+    </div>
+
+    <!-- Camera -->
+    <div class="card video-card">
+      <div class="card-h">
+        <span class="live"><span class="dot"></span>LIVE</span>
+        <span class="card-t">Camera</span>
+        <div class="grow"></div>
+        <div class="tools" id="drawButtons">
+          <input type="text" class="input" id="zoneName" placeholder="Bed 1">
+          <button class="btn btn-bed"  onclick="startDraw('bed')">＋ Bed zone</button>
+          <button class="btn btn-edge" onclick="startDraw('edge')">＋ Edge zone</button>
+        </div>
+        <div class="draw-bar" id="drawControls">
+          <span class="draw-hint" id="drawHintText">Click to place corners</span>
+          <button class="btn" id="undoDrawBtn">↩ Undo</button>
+          <button class="btn" id="cancelDrawBtn">Cancel</button>
+          <button class="btn btn-primary" id="saveDrawBtn" disabled>Save zone</button>
+        </div>
+      </div>
+      <div class="video-wrap" id="videoWrap">
+        <img id="videoFeed" src="/stream" alt="Camera feed">
+        <canvas id="roiCanvas"></canvas>
+      </div>
+    </div>
+
+  </section>
+
+  <aside class="col-side">
+
+    <!-- AI Verification -->
+    <div class="card ai-card">
+      <div class="card-h">
+        <span>🧠</span><span class="card-t">AI verification</span>
+        <div class="grow"></div>
+        <span class="status-tag" id="aiStatus">—</span>
+      </div>
+      <div class="card-b" id="aiBody">
+        <div class="ai-verdict none" id="aiVerdict">
+          <div class="big" id="aiBig">No verdict yet</div>
+          <div class="why" id="aiWhy">The agent checks the camera image whenever the patient moves toward the edge.</div>
+          <div class="when num" id="aiWhen"></div>
+        </div>
+        <button class="btn btn-ai btn-block" id="aiRunBtn" onclick="runAgentNow()">Check now</button>
+        <div class="sub-t">Recent runs</div>
+        <div id="aiRuns"><div class="empty">No runs yet</div></div>
+      </div>
+      <div class="card-b ai-off" id="aiOff" style="display:none">
+        AI verification is off. Start the monitor with
+        <code>--agent bed-guardian</code> and TrueForge running to enable it.
+      </div>
+    </div>
+
+    <!-- Event log -->
+    <div class="card log-card">
+      <div class="card-h"><span class="card-t">Event log</span><div class="grow"></div>
+        <span class="sum-extra" id="logCount">0 events</span></div>
+      <div class="log-scroll" id="logList"><div class="lempty">Waiting for events…</div></div>
+    </div>
+
+    <!-- Zones -->
+    <details class="card">
+      <summary><span class="card-t">Zones</span><div class="hspace"></div><span class="sum-extra" id="zoneCount">0</span></summary>
+      <div class="card-b">
+        <div id="zoneList"><div class="empty">No zones · draw a bed zone to begin</div></div>
+        <div class="slider-row">
+          <span>Near zone</span>
+          <input type="range" id="nearSlider" min="50" max="300" value="120">
+          <span class="num" id="nearVal">120</span><span>px</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- Test mode -->
+    <details class="card">
+      <summary><span class="card-t">Test mode</span><div class="hspace"></div><span class="sum-extra" id="testSumm"></span></summary>
+      <div class="card-b">
+        <button class="btn btn-block" id="testBtn" onclick="toggleTest()">▶ Start test</button>
+        <div class="test-status" id="testStatus">● Recording <span class="num" id="testElapsed">0s</span></div>
+        <div class="test-report" id="testReport">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span class="sub-t" style="margin:0">Test report</span>
+            <button class="btn btn-sm" onclick="copyReport()">⎘ Copy</button>
+          </div>
+          <pre class="test-pre" id="testReportPre"></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- Debug -->
+    <details class="card">
+      <summary><span class="card-t">Debug</span><div class="hspace"></div><span class="sum-extra" id="debugSummary">AR — · MOT —</span></summary>
+      <div class="card-b">
+        <div class="dbsec-t">Detection</div>
+        <div class="dbgrid">
+          <div class="dbrow"><span class="dbkey">Aspect ratio</span><span class="dbval" id="dbAr">—</span></div>
+          <div class="dbrow"><span class="dbkey">Lying flat</span><span class="dbval" id="dbFlat">—</span></div>
+          <div class="dbrow"><span class="dbkey">Motion</span><span class="dbval" id="dbMot">—</span></div>
+          <div class="dbrow"><span class="dbkey">Candidate</span><span class="dbval" id="dbCand">—</span></div>
+        </div>
+        <div class="dbsec-t">Grace timer</div>
+        <div class="dbgrid">
+          <div class="dbrow"><span class="dbkey">Elapsed</span><span class="dbval" id="dbGraceEl">—</span></div>
+          <div class="dbrow"><span class="dbkey">Needed</span><span class="dbval" id="dbGraceNd">—</span></div>
+        </div>
+        <div class="dbsec-t">Zone membership</div>
+        <div class="dbgrid">
+          <div class="dbrow"><span class="dbkey">torso / bed</span><span class="dbval" id="dbTorsoBed">—</span></div>
+          <div class="dbrow"><span class="dbkey">head / bed</span><span class="dbval" id="dbHeadBed">—</span></div>
+          <div class="dbrow"><span class="dbkey">torso / edge</span><span class="dbval" id="dbTorsoEdge">—</span></div>
+          <div class="dbrow"><span class="dbkey">head / edge</span><span class="dbval" id="dbHeadEdge">—</span></div>
+          <div class="dbrow"><span class="dbkey">torso / near</span><span class="dbval" id="dbTorsoNear">—</span></div>
+          <div class="dbrow"><span class="dbkey">head / near</span><span class="dbval" id="dbHeadNear">—</span></div>
+        </div>
+      </div>
+    </details>
+
+  </aside>
+</main>
+
+<!-- Alert Popup -->
+<div id="alertPopup">
+  <div class="ap-lv" id="apLv">ALERT</div>
+  <div class="ap-msg" id="apMsg">—</div>
+  <button class="ap-close" onclick="ackAndClose()">✓ Acknowledge</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
