@@ -1,0 +1,18 @@
+[Unit]
+Description=BedDoc bed-exit monitor
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/BedDoc
+ExecStart=/home/pi/BedDoc/venv/bin/python backend/app.py --width 1280 --height 400 --skip 2
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
